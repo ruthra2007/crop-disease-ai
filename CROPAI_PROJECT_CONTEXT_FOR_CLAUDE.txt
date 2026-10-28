@@ -1,0 +1,1647 @@
+CROPAI PROJECT CONTEXT FOR CLAUDE
+Repository-grounded technical reference
+
+Inspection date: 2026-10-26
+Repository root: crop-disease-ai/
+
+SECURITY AND ACCURACY NOTE
+This document intentionally excludes .env contents, credentials, database connection strings, uploaded image names, personal records, dependency trees, datasets, and binary model weights. It reports implementation from source and existing artifacts; a UI element or README statement alone is not treated as proof that a feature works. Metrics below are read from the repository's saved evaluation artifact and are not field-validation claims.
+
+======================================================================
+1. PROJECT IDENTITY
+======================================================================
+
+Project name:
+CropAI / Crop Disease AI, based on the README and frontend branding.
+
+Purpose:
+Analyze supported pepper, potato, and tomato leaf images with a custom
+TensorFlow/Keras convolutional neural network (CNN). The web application
+accepts an image, asks a separate Python model worker for ranked class
+scores, stores the prediction and normalized image, and presents history,
+review, and reporting controls to a single configured owner account.
+
+Current project status:
+- Functional academic/prototype web application, not a production-validated
+  agricultural diagnosis system.
+- React/Vite frontend and Express backend are present.
+- MongoDB/Mongoose persistence is implemented and was connected during
+  inspection at the local development server.
+- A trained Keras model file, class-name metadata, training history, and
+  evaluation outputs are present under ml/output (the binary model itself is
+  intentionally not copied into this document).
+- The inference implementation runs a persistent Python worker. On Windows,
+  server/services/modelInference.js starts it through WSL.
+- Prior integration work in this workspace exercised real model inference,
+  authenticated owner-scoped API behavior, stored image access, history,
+  review, and PDF generation. This documentation task did not rerun the
+  model or training.
+- There are no project-authored automated test files found outside excluded
+  dependency/build/data directories.
+
+Entry points:
+- Browser HTML: client/index.html
+- React entry: client/src/main.jsx
+- Main React application: client/src/App.jsx
+- Express application: server/app.js
+- Node server startup: server/server.js
+- Training: ml/training/train_cnn.py
+- Evaluation: ml/evaluation/evaluate_model.py
+- Model worker: ml/inference/worker.py
+
+Repository layout (excluding dependencies and generated build output):
+
+  client/
+    index.html
+    public/                 static icons
+    src/
+      App.jsx               authentication, analyzer, history, detail dialog
+      Dashboard.jsx         dashboard UI and charts
+      App.css               app components and responsive styles
+      index.css             global typography and base rules
+      diseaseGuide.js       class display names and UI guidance
+      diagnosisReport.js    browser-generated PDF
+      main.jsx              React root and BrowserRouter
+      assets/               bundled assets (not all are referenced)
+      components/           empty at inspection
+      context/              empty at inspection
+      hooks/                empty at inspection
+      pages/                empty at inspection
+      services/             empty at inspection
+  server/
+    app.js                  Express middleware and route mounting
+    server.js               MongoDB connection and HTTP listener
+    config/db.js            Mongoose connection
+    controllers/            prediction, history, image, review, dashboard
+    middleware/             owner-session authentication
+    models/                 Mongoose Prediction schema
+    routes/                 authentication and prediction API routes
+    services/               Python model worker process client
+    uploads/                generated JPEGs, excluded from Git
+    utils/                  empty at inspection
+  ml/
+    dataset/                class-directory image dataset (excluded here)
+    evaluation/             held-out evaluation script
+    inference/              persistent Python worker
+    inspection/             sample-based image validation utility
+    output/                 generated model, class metadata, metrics/plots
+    training/               config, dataset loader, CNN training script
+    README.md
+  README.md
+  package.json
+  package-lock.json
+
+Local startup, based on scripts:
+- `npm run dev` at the repository root runs the server and Vite client
+  together using concurrently.
+- `npm run server` starts `node server/server.js`.
+- `npm run client` starts Vite through the client package.
+- In client/: `npm run build`, `npm run lint`, `npm run preview`.
+- README describes the Python training, inspection, and evaluation scripts.
+- Backend's configured/default HTTP port is 5000. Vite proxies `/api` to
+  `http://localhost:5000`; Vite's default development URL is port 5173.
+  These local development URLs were observed in this workspace.
+- MongoDB is configured through MONGO_URI, with a local, credential-free
+  fallback defined in source. The actual connection string is not reproduced.
+- Windows inference is configured to invoke Python in a WSL distribution;
+  the specific machine path and environment-file values are intentionally
+  omitted.
+
+======================================================================
+2. TECHNOLOGY STACK
+======================================================================
+
+Frontend (declared package versions/ranges):
+- React 19.2.8
+- React DOM 19.2.8
+- React Router DOM 7.18.4
+- Vite 8.3.0, with @vitejs/plugin-react 6.1.1
+- Recharts 3.10.1
+- Axios 1.20.0
+- jsPDF 4.2.1
+- oxlint 1.81.0
+- JavaScript JSX and CSS; no TypeScript source found.
+- Client styles are handwritten CSS, not a utility CSS framework.
+
+Backend (declared package versions/ranges):
+- Node.js / Express 5.2.1
+- Mongoose 9.10.2 and MongoDB
+- Multer 2.4.0 for multipart uploads
+- Sharp 0.35.5 for JPEG normalization
+- Helmet 8.3.0, cors 2.8.6, express-rate-limit 8.7.0
+- jsonwebtoken 9.0.3 for signed owner sessions
+- dotenv 18.0.4 for server/.env
+- concurrently 9.2.0 for the root development command
+- bcryptjs and @tensorflow/tfjs-node are declared dependencies, but the
+  inspected application source does not use them for authentication or
+  inference. The inference path actually used is Python/TensorFlow.
+
+Machine learning:
+- Python requirements are declared in ml/requirements.txt:
+  TensorFlow 2.18.0, NumPy 1.26.4, pandas 2.2.3,
+  opencv-python-headless 4.10.0.84, Pillow 11.0.0,
+  scikit-learn 1.6.1, matplotlib 3.10.0.
+- Actual train/evaluate/inference source uses TensorFlow/Keras, NumPy,
+  Pillow, scikit-learn, and matplotlib. The inspected training and worker
+  files do not import pandas or OpenCV.
+- On Windows, Express uses WSL to run the Python worker. The worker loads
+  Keras model and class metadata from ml/output.
+- No pretrained model API or transfer-learning code was found.
+
+Persistence and files:
+- MongoDB through Mongoose; Prediction is the only application schema found.
+- Uploaded leaf images are normalized to JPEG by Sharp and stored on the
+  backend filesystem in server/uploads. MongoDB stores the generated filename
+  and image metadata, not an image binary.
+- CSV is generated in the browser with Blob/object URL APIs.
+- PDF is generated in the browser with jsPDF, and the saved image is fetched
+  from the owner-protected image endpoint when available.
+
+Runtime versions observed during inspection:
+- Node v24.15.0
+- npm 11.12.1
+- Backend health endpoint reported API status "ok" and database status
+  "connected" at inspection time.
+- Python interpreter version and GPU availability were not independently
+  verified in this documentation pass.
+
+======================================================================
+3. REPOSITORY FILE MAP
+======================================================================
+
+Application files:
+- README.md: project behavior, local startup, owner privacy, model and
+  evaluation notes.
+- package.json: root scripts and backend dependencies.
+- client/package.json: frontend dependencies and build/lint scripts.
+- client/vite.config.js: React plugin and development proxy for /api.
+- client/index.html: Vite HTML shell; its document title is currently the
+  generic string "client".
+- client/src/main.jsx: creates React root and wraps App in BrowserRouter.
+- client/src/App.jsx: sign-in gate, route selection by current pathname,
+  analyzer/upload/result UI, history, review, detail modal, CSV actions.
+- client/src/Dashboard.jsx: dashboard request and Recharts visualizations.
+- client/src/diseaseGuide.js: class formatting, crop extraction, disease
+  text, and provisional display-score bands.
+- client/src/diagnosisReport.js: PDF layout and image inclusion.
+- client/src/App.css and client/src/index.css: visual design, components,
+  breakpoints, accessible focus, and reduced-motion behavior.
+- client/public/favicon.svg and icons.svg: static assets.
+- client/src/assets/hero.png, react.svg, vite.svg: bundled assets exist;
+  no source reference to these assets was found in client/src. They should
+  not be assumed to be visible screenshots or active page content.
+- client/src/components, context, hooks, pages, services: directories exist
+  but were empty at inspection.
+
+Backend files:
+- server/app.js: security/request middleware, auth route registration,
+  health endpoint, prediction route registration, error and 404 handling.
+- server/server.js: connects MongoDB before calling app.listen.
+- server/config/db.js: Mongoose connection and fail-fast startup behavior.
+- server/routes/authRoutes.js: login, session, logout.
+- server/routes/predictionRoutes.js: protected route declarations.
+- server/middleware/requireOwner.js: verifies the signed cookie and sets
+  request.ownerId.
+- server/controllers/predictionController.js: upload validation, inference
+  orchestration, image persistence, prediction serialization, history,
+  dashboard aggregation, label review, image retrieval, deletion.
+- server/models/Prediction.js: prediction and review schema.
+- server/services/modelInference.js: persistent Python/WSL worker process
+  protocol and prediction request handling.
+- server/.env.example: names and illustrative placeholders for runtime
+  configuration only. The private server/.env was not copied or inspected
+  for values in this document.
+- server/uploads: generated image storage; existing file names and images
+  are not reproduced.
+
+ML files and artifacts:
+- ml/README.md: documented dataset folder pattern and Python commands.
+- ml/requirements.txt: Python dependency pins.
+- ml/training/config.py: paths and training constants.
+- ml/training/dataset_loader.py: sorted class discovery, seeded stratified
+  split, preprocessing, tf.data construction, class metadata writing.
+- ml/training/train_cnn.py: custom CNN and fitting/checkpoint output.
+- ml/inspection/inspect_dataset.py: sample-based image checks.
+- ml/evaluation/evaluate_model.py: test split metrics and confusion matrix.
+- ml/inference/worker.py: loads saved model, preprocesses one request and
+  returns ranked class scores.
+- ml/output/class_names.json: actual nine-class label list.
+- ml/output/crop_disease_model.keras: saved Keras artifact exists; binary
+  weights intentionally excluded.
+- ml/output/evaluation.json, history.json, confusion_matrix.csv, and
+  confusion_matrix.png: generated evaluation/training artifacts; only
+  factual numeric summaries are included below.
+- No `training_log.csv` was present although its path is declared in config.
+- Python __pycache__ directories are generated caches and are excluded.
+
+Tests, screenshots, and legacy evidence:
+- No application-authored test or spec files were found outside excluded
+  dependency/build/data folders.
+- No repository screenshots were found. `client/src/assets/hero.png` is an
+  application image asset, not evidence of application behavior.
+- Empty source directories listed above are scaffolding, not evidence of
+  implemented component/service modules.
+- No duplicate or legacy active application page was identified from
+  inspected source. Vite starter SVG assets remain in the client.
+
+======================================================================
+4. ACTUAL APPLICATION FEATURES
+======================================================================
+
+Feature status meanings:
+IMPLEMENTED = source and persistence/API path exist; runtime integration was
+also exercised where noted.
+PARTIALLY IMPLEMENTED = working scope exists but has material limits.
+MOCK OR HARDCODED = source contains illustrative/hardcoded behavior.
+PLANNED OR NOT FOUND = no implementation found.
+BROKEN OR UNVERIFIED = source/artifact evidence is insufficient to assert
+working behavior.
+
+- Landing/analyzer page - IMPLEMENTED.
+  App.jsx renders the CropAI field diagnostics/analyzer page for `/`.
+  It contains navigation, crop filter, upload panel, result panel, and saved
+  history. This is not a separate public marketing landing page.
+
+- Owner sign-in - IMPLEMENTED for one environment-configured owner.
+  App.jsx uses `/api/auth/session`, `/api/auth/login`, and `/api/auth/logout`.
+  authRoutes.js compares the configured email/password and issues a signed,
+  HTTP-only, SameSite=Strict cookie. requireOwner.js protects prediction and
+  owner data APIs. This is single-account authentication, not registration
+  or multi-user account management.
+
+- Image upload, preview, drag/drop and clipboard paste - IMPLEMENTED.
+  App.jsx accepts browser-selected, dropped, and pasted JPG, PNG, or WebP,
+  displays an object-URL preview, and submits multipart data.
+
+- Image validation/preprocessing - IMPLEMENTED with limits.
+  The browser checks MIME type and a maximum size of 8 MiB. The backend
+  Multer memory upload repeats MIME/size checks, accepts one image, and
+  enforces an 8 MiB maximum. Python Pillow applies EXIF orientation, RGB
+  conversion, 224x224 bilinear resize, and division by 255. Sharp separately
+  rotates and stores a quality-85 JPEG with a 40-million-pixel processing
+  limit. MIME checks are not a complete content-security guarantee.
+
+- Crop selection - PARTIALLY IMPLEMENTED.
+  UI offers auto, tomato, potato, pepper. This does not perform a visual
+  crop-identification step: the Python worker filters eligible output class
+  indices by the selected crop prefix; `auto` considers all classes. A
+  selected crop restricts candidates, but score values are not renormalized.
+
+- CNN prediction - IMPLEMENTED; real model path verified in prior manual
+  integration work.
+  `/api/predict` calls modelInference.predict, which sends base64 image bytes
+  to a persistent Python process. The worker loads the saved Keras model and
+  class metadata and runs the model; there is no fabricated fallback result.
+  If worker/model inference fails, the request returns an error.
+
+- Top-k results and score display - IMPLEMENTED.
+  Worker returns up to three class names and raw softmax scores. UI renders
+  those model outputs and a score meter. Display labels High >= 80%,
+  Moderate >= 50% and < 80%, Low < 50% are provisional guidance, not
+  calibrated probabilities. Backend marks < 50% uncertain.
+
+- Disease information/prevention - PARTIALLY IMPLEMENTED.
+  diseaseGuide.js has fixed text for the nine recognized model classes.
+  This is a small static reference map, not a dynamic expert system or
+  personalized treatment recommendation. Guidance is general.
+
+- MongoDB prediction history and image storage - IMPLEMENTED.
+  Controller persists original predicted class, score, top outputs, image
+  file metadata, and timestamp to MongoDB. JPEG bytes are written to
+  server/uploads. History reads are owner-filtered. Prior integration work
+  verified a saved model prediction and image retrieval.
+
+- Search, filters, sorting, detail, delete, CSV export - IMPLEMENTED.
+  App.jsx supplies search, crop/class filters, newest/oldest and
+  score-ascending/descending sorts, a detail dialog, confirmation before
+  deleting record/image, and browser CSV download. The backend history
+  endpoint supports these filters. CSV covers the currently fetched result
+  set; the UI fetches matching history without a pagination control.
+
+- Label review and unknown/new class - IMPLEMENTED as stored metadata.
+  Review allows one of the model classes or `__unknown__`. It stores
+  reviewedLabel/reviewStatus/reviewedAt separately from the original
+  `prediction`; original prediction is preserved. This only records human
+  feedback; no training-data export/ingestion or retraining automation was
+  found.
+
+- Dashboard and charts - IMPLEMENTED.
+  Dashboard.jsx fetches `/api/dashboard/stats`; backend derives totals,
+  healthy/diseased counts, average raw score, seven UTC calendar days of
+  activity, disease-class distribution and five recent records from the
+  owner's MongoDB rows. Recharts renders bar and pie charts. Empty records
+  have an empty state; values are not seeded or hard-coded. Disease
+  distribution omits classes whose labels end with "healthy".
+
+- PDF report - IMPLEMENTED in browser.
+  diagnosisReport.js uses jsPDF to generate a report for a saved/result
+  record with report date, optional saved image, original class, score, top
+  outputs, available static guide text and disclaimer. A model-version
+  section is conditional, but the current Prediction schema/serializer does
+  not define model version, so the source does not currently supply it.
+
+- Error, loading, success and empty states - PARTIALLY IMPLEMENTED.
+  UI handles session loading, login errors, upload/model errors, dashboard
+  loading/errors/empty data, history loading/errors/empty data, review/delete
+  errors, and PDF errors. There is no global notification framework. Backend
+  final error middleware returns a generic 503 response, including for
+  errors that could have more specific status codes.
+
+- Responsive layout - IMPLEMENTED in CSS.
+  App.css has breakpoints at 760px and 420px, responsive cards/charts/forms,
+  focus-visible styles, and a prefers-reduced-motion rule. No screenshot or
+  automated viewport test was found in the repository.
+
+- Account/password administration - PLANNED OR NOT FOUND.
+  No registration, account recovery, password reset/change UI, roles, or
+  multi-user management found. Credentials are read from server environment
+  configuration.
+
+- Future automatic retraining from reviews - PLANNED OR NOT FOUND.
+  Human label review is stored, but no code exports reviewed records into a
+  training dataset or trains automatically. The README explicitly cautions
+  against treating unreviewed model guesses as training labels.
+
+======================================================================
+5. FRONTEND ARCHITECTURE
+======================================================================
+
+Entry and navigation:
+- client/src/main.jsx imports base CSS, mounts App, and wraps it in
+  BrowserRouter.
+- App.jsx uses useLocation/useNavigate and checks location.pathname for
+  `/dashboard`; every other path displays the analyzer. There is no explicit
+  Routes/Route declaration or separate route component tree.
+- Dashboard is dynamically imported with React.lazy/Suspense.
+- Main app state is held in React useState/useRef/useEffect. There is no
+  Redux, Context provider, or custom hook implementation in source. The
+  context/hooks/services directories are empty.
+- Axios requests use relative `/api` URLs. Vite's dev proxy forwards those
+  calls to Express; there is no dedicated API service abstraction.
+
+Upload/prediction flow:
+1. chooseFile checks declared MIME type and 8 MiB size, makes an object URL,
+   and stores file/preview state.
+2. Input accepts JPG/PNG/WebP and also supports drop and clipboard paste.
+3. analyzePhoto builds FormData with `image` and `crop`, POSTs `/api/predict`,
+   then stores returned record as the displayed result and prepends it to
+   local history state.
+4. On failure, it shows the backend message or a model-service fallback
+   error. It does not invent a prediction.
+5. resetAnalysis revokes preview object URLs and clears input/result.
+
+History/dashboard flow:
+- History effect calls GET `/api/predictions` with query parameters for
+  search, crop, disease/class, and sort. A short debounce is applied to
+  nonempty search.
+- The class selector data comes from GET `/api/predictions/classes`.
+- Dashboard.jsx calls GET `/api/dashboard/stats` on mount and displays
+  returned records/statistics.
+- Label review calls PATCH `/api/predictions/:id/label`.
+- Delete calls DELETE `/api/predictions/:id`.
+- Image thumbnails and detail view use the returned `image_url`.
+- CSV serializes the currently fetched history result into a UTF-8 CSV Blob.
+
+Styling:
+- Visual design uses cream/off-white surfaces, forest-green text/accent,
+  olive secondary colors, and Georgia/Times serif display headings.
+- App.css owns most component styling; index.css sets base typography and
+  focus/selection rules.
+- Responsive breakpoints: 760px and 420px.
+- `client/index.html` still has `<title>client</title>`, not a branded title.
+
+Accurate representative React excerpt:
+
+FILE: client/src/main.jsx
+PURPOSE: React entry and browser-history router wrapper.
+STATUS: IMPLEMENTED.
+CODE:
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </StrictMode>,
+  )
+
+FILE: client/src/App.jsx (analyzePhoto)
+PURPOSE: Submit selected image and crop restriction; expose errors, not
+fabricated outputs.
+STATUS: IMPLEMENTED.
+CODE:
+  async function analyzePhoto(event) {
+    event.preventDefault()
+    if (!file || isLoading) return
+    setIsLoading(true)
+    setError('')
+    const payload = new FormData()
+    payload.append('image', file)
+    payload.append('crop', crop)
+    try {
+      const response = await axios.post('/api/predict', payload)
+      setResult(response.data)
+      setRecentPredictions((current) => [
+        response.data,
+        ...current.filter((prediction) => prediction.id !== response.data.id),
+      ].slice(0, 100))
+    } catch (requestError) {
+      setError(requestError.response?.data?.message
+        || 'The model could not analyze this photo. Check that the prediction service is running.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+FILE: client/src/Dashboard.jsx
+PURPOSE: Fetch actual dashboard aggregate and render Recharts.
+STATUS: IMPLEMENTED.
+CODE:
+  useEffect(() => {
+    let active = true
+    axios.get('/api/dashboard/stats')
+      .then((response) => {
+        if (active) setStats(response.data)
+      })
+      .catch((requestError) => {
+        if (active) {
+          setError(requestError.response?.data?.message
+            || 'Dashboard statistics could not be loaded.')
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
+======================================================================
+6. BACKEND ARCHITECTURE
+======================================================================
+
+Startup and middleware:
+- server/server.js imports app and connectDB; it awaits MongoDB connection
+  before listening on PORT or the source default 5000.
+- server/app.js loads server/.env, mounts Helmet, CORS, JSON and URL-encoded
+  parsers, then applies a 100-requests-per-15-minute rate limiter to /api.
+- Authentication routes are mounted at /api before prediction routes.
+- GET /api/health reports server/database status without owner authentication.
+- Prediction routes apply requireOwner to all their routes.
+- Final error middleware logs the error message server-side and returns a
+  generic 503 JSON message. A 404 handler returns "Route not found".
+- server/config/db.js connects through Mongoose, using MONGO_URI when set
+  and a local MongoDB fallback otherwise. Startup exits if connection fails.
+
+Upload and inference:
+- Multer stores the incoming multipart image in memory, accepts one image,
+  checks MIME against JPEG/PNG/WebP and limits the file to 8 MiB.
+- Controller validates crop to auto/tomato/potato/pepper and calls the
+  model service before writing a JPEG.
+- Sharp rotates according to metadata, encodes JPEG quality 85, and limits
+  image processing to 40 million input pixels.
+- The output filename is generated from randomUUID. It is not derived from
+  a user-supplied path/name.
+- Controller writes image then creates a Prediction MongoDB document. If
+  the later operation fails, it tries to remove the unrecorded file.
+- Model service starts one persistent Python process and sends one JSON
+  request per line, with base64 image bytes. In Windows it maps the project
+  path to WSL and starts the configured Python path. It correlates replies
+  by request ID and has worker-start and inference timeouts.
+- Worker loads Keras model/classes once and handles multiple requests.
+
+Ownership/auth:
+- authRoutes.js uses environment-configured one-owner email/password.
+  It uses constant-time comparison for equal-length candidate strings and
+  signs a JWT with a seven-day expiration.
+- The token is a cookie named `cropai_session`; cookie is HttpOnly,
+  SameSite=Strict, path `/`, and Secure when NODE_ENV is production.
+- requireOwner.js verifies JWT and checks its subject against the normalized
+  configured owner email. It assigns that normalized email as ownerId.
+- Every prediction/history/image/review/delete/dashboard endpoint is scoped
+  by request.ownerId. Records without ownerId are not included by owner
+  queries (ownerless legacy rows are hidden, not claimed automatically).
+- There is no registration or multi-account database model. Passwords are
+  environment configuration, not stored in MongoDB. No password hashing
+  call was found in inspected source.
+
+API endpoints (paths are relative to `/api`; all were found in route source):
+
+METHOD | PATH                         | AUTH REQUIRED? | PURPOSE                         | SOURCE FILE                         | STATUS
+GET    | /health                       | No             | API/database health             | server/app.js                      | Implemented
+POST   | /auth/login                   | No             | Sign in configured owner        | server/routes/authRoutes.js        | Implemented
+GET    | /auth/session                 | Yes            | Return verified owner session   | server/routes/authRoutes.js        | Implemented
+POST   | /auth/logout                  | No             | Clear session cookie            | server/routes/authRoutes.js        | Implemented
+GET    | /predictions/recent           | Yes            | Return up to 100 newest records | server/routes/predictionRoutes.js  | Implemented; no UI call found
+GET    | /predictions/classes          | Yes            | Return model labels             | server/routes/predictionRoutes.js  | Implemented; used by UI
+GET    | /predictions                  | Yes            | Search/filter/sort history      | server/routes/predictionRoutes.js  | Implemented; used by UI
+GET    | /dashboard/stats              | Yes            | Owner dashboard aggregates      | server/routes/predictionRoutes.js  | Implemented; used by UI
+POST   | /predict                      | Yes            | Upload and predict image        | server/routes/predictionRoutes.js  | Implemented; used by UI
+GET    | /predictions/:id/image        | Yes            | Serve owned saved JPEG          | server/routes/predictionRoutes.js  | Implemented; used by UI
+PATCH  | /predictions/:id/label        | Yes            | Save reviewed label separately  | server/routes/predictionRoutes.js  | Implemented; used by UI
+DELETE | /predictions/:id              | Yes            | Delete owned record and image    | server/routes/predictionRoutes.js  | Implemented; used by UI
+
+The API has no route for model training, exporting reviewed training data,
+registering accounts, or changing account credentials.
+
+Representative backend excerpts:
+
+FILE: server/server.js
+PURPOSE: Connect MongoDB before opening HTTP port.
+STATUS: IMPLEMENTED.
+CODE:
+  const PORT = process.env.PORT || 5000
+  async function startServer() {
+    await connectDB()
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`)
+    })
+  }
+  startServer()
+
+FILE: server/routes/predictionRoutes.js
+PURPOSE: Protect data routes and associate API paths with controller methods.
+STATUS: IMPLEMENTED.
+CODE:
+  router.use(requireOwner)
+  router.get('/predictions/recent', getRecentPredictions)
+  router.get('/predictions/classes', getPredictionClasses)
+  router.get('/predictions', getPredictionHistory)
+  router.get('/dashboard/stats', getDashboardStats)
+  router.post('/predict', parseImage, predictImage)
+  router.get('/predictions/:id/image', getPredictionImage)
+  router.patch('/predictions/:id/label', reviewPrediction)
+  router.delete('/predictions/:id', deletePrediction)
+
+FILE: server/config/db.js
+PURPOSE: Connect with Mongoose and fail startup if DB is unavailable.
+STATUS: IMPLEMENTED.
+CODE:
+  const connectDB = async () => {
+    try {
+      const conn = await mongoose.connect(
+        process.env.MONGO_URI || LOCAL_MONGODB_FALLBACK
+      )
+      console.log(`MongoDB connected: ${conn.connection.host}`)
+    } catch (error) {
+      console.error('MongoDB connection error:', error.message)
+      process.exit(1)
+    }
+  }
+
+Note: LOCAL_MONGODB_FALLBACK above is an explanatory placeholder, not a
+literal source symbol or copied connection string. The actual source uses a
+local credential-free URI fallback.
+
+======================================================================
+7. MACHINE-LEARNING PIPELINE
+======================================================================
+
+Training framework and provenance:
+- The source defines and trains a custom CNN with TensorFlow/Keras from
+  scratch. No pretrained model or transfer-learning layer is used.
+- README and ML README identify the project dataset as PlantVillage.
+  Repository files have one directory per class, and actual data/model
+  artifacts exist. Dataset provenance/licensing is not independently
+  established by a manifest in the inspected source; cite PlantVillage as
+  the project's documented dataset source, not as an independently audited
+  provenance statement.
+- Dataset code expects `ml/dataset/<class-name>/<image-file>`.
+- Accepted training image suffixes: .jpg, .jpeg, .png, .bmp.
+- Class directories are sorted lexicographically; this order becomes the
+  numeric label order and is saved in ml/output/class_names.json.
+- Actual saved class list contains nine classes:
+  Pepper__bell___Bacterial_spot
+  Pepper__bell___healthy
+  Potato___Early_blight
+  Potato___Late_blight
+  Potato___healthy
+  Tomato_Early_blight
+  Tomato_Late_blight
+  Tomato_Leaf_Mold
+  Tomato_healthy
+
+Image sizing and preprocessing:
+- `IMG_SIZE = (224, 224)`.
+- Both dataset loader and inference create three-channel RGB images.
+- PIL dataset preprocessing converts RGB, resizes to target dimensions,
+  casts float32, and divides pixel values by 255. The training tf.data path
+  decodes 3 channels, resizes and normalizes in the same way.
+- Inference uses EXIF transpose, RGB, 224x224 bilinear resize, float32 / 255.
+- No data augmentation transform is defined in the training pipeline.
+- Training dataset is shuffled with the configured seed.
+
+Splitting/reproducibility:
+- Seed constant is 42.
+- First split reserves validation + test = 20% from the full data, stratified
+  by class. A second stratified split creates validation/test at 10% each of
+  the full dataset (the second split uses test_size 0.10 / 0.20).
+- Split uses scikit-learn train_test_split with random_state=42.
+- No TensorFlow global random seed is set in the inspected training source;
+  full training determinism is not established.
+
+CNN architecture (in order):
+1. Input: 224 x 224 x 3.
+2. Conv2D 32 filters, 3x3, same padding, He-normal initialization.
+3. BatchNormalization, ReLU, MaxPooling2D 2x2.
+4. Conv2D 64 filters, 3x3, same padding, He-normal initialization.
+5. BatchNormalization, ReLU, MaxPooling2D 2x2.
+6. Conv2D 128 filters, 3x3, same padding, He-normal initialization.
+7. BatchNormalization, ReLU, MaxPooling2D 2x2.
+8. Conv2D 256 filters, 3x3, same padding, He-normal initialization.
+9. BatchNormalization, ReLU, GlobalAveragePooling2D.
+10. Dense 128 ReLU, Dropout 0.4.
+11. Dense num_classes softmax.
+
+Training settings:
+- Adam optimizer, learning rate 0.001.
+- Categorical cross-entropy.
+- Accuracy metric.
+- Batch size 16.
+- Maximum 20 epochs.
+- No early stopping, learning-rate scheduler, or best-checkpoint callback is
+  defined. Model is saved after `fit` completes, then evaluated on the test
+  dataset.
+- Training output: ml/output/crop_disease_model.keras,
+  ml/output/class_names.json, and ml/output/history.json.
+- ml/training/config.py also names `training_log.csv`, but no code writes it
+  in the inspected training script and no such file was present.
+
+Evaluation:
+- `evaluate_model.py` reconstructs the same seeded split, loads the saved
+  Keras model with compile=False, predicts the held-out test set, and writes
+  evaluation.json, confusion_matrix.csv, confusion_matrix.png.
+- Existing evaluation.json reports 1,008 test samples and accuracy
+  0.8422619 (84.23%). It also contains per-class precision/recall/F1 and a
+  confusion matrix.
+- Existing macro-average: precision 0.8153, recall 0.8312, F1 0.7962.
+- Existing weighted average: precision 0.8998, recall 0.8423, F1 0.8543.
+- The class support is imbalanced; e.g. Potato healthy has 15 test samples
+  while other classes have larger support. Per-class performance varies.
+- These are values in an existing saved evaluation artifact, not a new run
+  performed for this document, and do not establish field performance,
+  external validity, or calibrated confidence.
+
+Deployment and inference:
+- Model path and class metadata are loaded from ml/output by
+  ml/inference/worker.py.
+- `server/services/modelInference.js` launches the worker and sends JSON
+  lines with request IDs and base64 image contents. On Windows, it invokes
+  WSL, with distribution and Python location configurable in environment.
+- Worker checks that model output dimension equals class-name list length.
+- Worker invokes model on one preprocessed image with training=False.
+- It sorts class probability outputs and returns at most top 3.
+- For a selected crop it filters class names by prefix before ranking. The
+  returned softmax scores are original model outputs, not re-normalized over
+  the filtered crop.
+- Scores are softmax values and can be overconfident; they are not calibrated
+  probabilities or guaranteed disease diagnoses.
+- Worker emits explicit errors for unreadable images and model failures;
+  backend does not intentionally fall back to a fake/heuristic prediction.
+- A 5,176,950-byte `.keras` model file and class metadata exist in output.
+  Prior integration testing in this workspace exercised actual inference.
+  The artifact's authorship/training date are not established by the binary
+  file's presence alone.
+
+Representative ML excerpts:
+
+FILE: ml/training/config.py
+PURPOSE: Paths and reproducible split/training constants.
+STATUS: IMPLEMENTED.
+CODE:
+  IMG_SIZE = (224, 224)
+  BATCH_SIZE = 16
+  EPOCHS = 20
+  LEARNING_RATE = 1e-3
+  SEED = 42
+  VALIDATION_SPLIT = 0.10
+  TEST_SPLIT = 0.10
+
+FILE: ml/training/dataset_loader.py
+PURPOSE: Discover sorted class folders, stratify splits, normalize RGB.
+STATUS: IMPLEMENTED.
+CODE:
+  class_dirs = sorted([p for p in DATASET_DIR.iterdir() if p.is_dir()])
+  class_names = [d.name for d in class_dirs]
+  class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+  ...
+  X_train, X_temp, y_train, y_temp = train_test_split(
+      image_paths, labels,
+      test_size=TEST_SPLIT + VALIDATION_SPLIT,
+      random_state=SEED, stratify=labels,
+  )
+  X_val, X_test, y_val, y_test = train_test_split(
+      X_temp, y_temp,
+      test_size=(TEST_SPLIT / (TEST_SPLIT + VALIDATION_SPLIT)),
+      random_state=SEED, stratify=y_temp,
+  )
+  ...
+  image = tf.image.resize(image, IMG_SIZE)
+  image = tf.cast(image, tf.float32) / 255.0
+
+FILE: ml/training/train_cnn.py (build_model)
+PURPOSE: Define and compile the from-scratch CNN.
+STATUS: IMPLEMENTED.
+CODE:
+  x = keras.layers.Conv2D(32, (3, 3), padding='same',
+      kernel_initializer='he_normal')(inputs)
+  x = keras.layers.BatchNormalization()(x)
+  x = keras.layers.ReLU()(x)
+  x = keras.layers.MaxPooling2D((2, 2))(x)
+  # Repeated Conv2D/BatchNormalization/ReLU blocks use 64 and 128 filters.
+  x = keras.layers.Conv2D(256, (3, 3), padding='same',
+      kernel_initializer='he_normal')(x)
+  x = keras.layers.BatchNormalization()(x)
+  x = keras.layers.ReLU()(x)
+  x = keras.layers.GlobalAveragePooling2D()(x)
+  x = keras.layers.Dense(128, activation='relu')(x)
+  x = keras.layers.Dropout(0.4)(x)
+  outputs = keras.layers.Dense(num_classes, activation='softmax')(x)
+  model.compile(
+      optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+      loss='categorical_crossentropy',
+      metrics=['accuracy'],
+  )
+
+FILE: ml/evaluation/evaluate_model.py
+PURPOSE: Evaluate held-out test split and export class report/confusion matrix.
+STATUS: IMPLEMENTED; existing output artifact inspected, not rerun now.
+CODE:
+  model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+  probabilities = model.predict(test_dataset, verbose=1)
+  predicted_labels = np.argmax(probabilities, axis=1)
+  report = classification_report(
+      test_labels, predicted_labels,
+      labels=np.arange(len(class_names)),
+      target_names=class_names,
+      output_dict=True, zero_division=0,
+  )
+
+FILE: ml/inference/worker.py
+PURPOSE: Load trained model and perform real inference with preprocessing.
+STATUS: IMPLEMENTED; prior manual integration exercised it.
+CODE:
+  image = ImageOps.exif_transpose(source).convert('RGB')
+  image = image.resize(IMAGE_SIZE, Image.Resampling.BILINEAR)
+  array = np.asarray(image, dtype=np.float32) / 255.0
+  probabilities = model(np.expand_dims(array, axis=0),
+                        training=False).numpy()[0]
+  top_indices = sorted(
+      class_indices, key=lambda index: probabilities[index], reverse=True
+  )[:3]
+  return {
+      'prediction': top_predictions[0]['class_name'],
+      'confidence': top_predictions[0]['confidence'],
+      'top_predictions': top_predictions,
+      'crop_filter': crop,
+  }
+
+======================================================================
+8. DATABASE DESIGN
+======================================================================
+
+Database:
+- MongoDB via Mongoose.
+- server/server.js awaits connectDB before opening the HTTP listener.
+- Inspection-time API health returned database connected.
+- No in-memory/mock database fallback is present. Source fallback is a local
+  MongoDB URI if MONGO_URI is not configured; connection failure exits startup.
+
+Application collection/model:
+- Prediction model in server/models/Prediction.js; Mongoose's default
+  collection naming applies (`predictions`).
+
+Fields:
+- ownerId: String, indexed, default null. Current owner middleware assigns
+  normalized configured owner email as its value. Old null/absent rows are
+  excluded from owner-scoped API results.
+- prediction: required trimmed String. Original CNN output; never replaced
+  by review code.
+- confidence: required Number, minimum 0, maximum 1.
+- cropFilter: required String enum auto/tomato/potato/pepper.
+- topPredictions: array of subdocuments with `_id: false`.
+  - className: required String.
+  - confidence: required Number, range 0..1.
+- imageFilename: optional String; generated UUID plus `.jpg`.
+- imageMimeType: required String; controller writes image/jpeg.
+- imageSizeBytes: required Number, minimum 1.
+- isUncertain: Boolean default false; set from score threshold and unknown
+  review status.
+- reviewStatus: enum pending/confirmed/corrected, default pending.
+- reviewedLabel: optional trimmed String; valid review values are one of the
+  current model classes or the special unknown label.
+- reviewedAt: optional Date.
+- createdAt and updatedAt: automatic timestamps.
+
+Relationships and persistence behavior:
+- ownerId is a string ownership scope, not a Mongoose relation to a User
+  model. No User schema was found.
+- Prediction references an image by filename on local disk; image bytes are
+  not embedded in MongoDB.
+- Review updates reviewedLabel/status/time and preserves prediction.
+- Delete API removes the corresponding matching owned image file and record.
+- Dashboard and history are computed from stored rows, not seeded values.
+- Existing records without ownerId are intentionally hidden; no migration
+  script or automatic claim operation was found.
+
+Concise schema excerpt:
+
+FILE: server/models/Prediction.js
+PURPOSE: Persist original model output and separate human review metadata.
+STATUS: IMPLEMENTED.
+CODE:
+  const predictionSchema = new mongoose.Schema({
+    ownerId: { type: String, index: true, default: null },
+    prediction: { type: String, required: true, trim: true },
+    confidence: { type: Number, required: true, min: 0, max: 1 },
+    cropFilter: {
+      type: String, enum: ['auto', 'tomato', 'potato', 'pepper'],
+      required: true,
+    },
+    topPredictions: { type: [topPredictionSchema], default: [] },
+    imageFilename: { type: String },
+    imageMimeType: { type: String, required: true },
+    imageSizeBytes: { type: Number, required: true, min: 1 },
+    isUncertain: { type: Boolean, default: false },
+    reviewStatus: {
+      type: String, enum: ['pending', 'confirmed', 'corrected'],
+      default: 'pending',
+    },
+    reviewedLabel: { type: String, trim: true },
+    reviewedAt: { type: Date },
+  }, { timestamps: true })
+
+======================================================================
+9. SYSTEM ARCHITECTURE
+======================================================================
+
+Verified prediction-serving path:
+
+Browser owner
+  -> React app (BrowserRouter; App.jsx)
+  -> multipart POST /api/predict via Axios/Vite proxy
+  -> Express rate limiter and owner-session middleware
+  -> Multer memory upload (MIME allowlist, 8 MiB limit)
+  -> Node modelInference service
+  -> persistent Python worker (WSL on Windows)
+  -> Pillow RGB/EXIF/resize/normalize preprocessing
+  -> TensorFlow/Keras saved custom CNN
+  -> top-3 class outputs and raw softmax scores
+  -> Sharp JPEG normalization and generated file under server/uploads
+  -> Mongoose Prediction document in MongoDB
+  -> JSON response to React result/history UI
+
+Verified dashboard/history path:
+
+React Dashboard/history
+  -> authenticated Axios request through /api proxy
+  -> Express protected route
+  -> Mongoose query scoped to request.ownerId
+  -> JSON records/aggregates
+  -> Recharts/React UI
+
+Image retrieval path:
+
+React image URL
+  -> authenticated GET /api/predictions/:id/image
+  -> owner-scoped MongoDB row lookup
+  -> generated image filename under server/uploads
+  -> image/jpeg response
+
+Separate ML training/evaluation path:
+
+ml/dataset/<class-folder>/<image>
+  -> sorted class discovery and class-index assignment
+  -> stratified train/validation/test split (seed 42)
+  -> RGB 224x224 resize and [0,1] scaling
+  -> custom CNN trained from scratch with TensorFlow/Keras
+  -> saved .keras model, class_names.json, history.json
+  -> evaluation.py reloads model/test split
+  -> evaluation.json, confusion_matrix.csv, confusion_matrix.png
+  -> runtime worker loads .keras model and class metadata
+
+Absent/important boundaries:
+- There is no separate model-serving HTTP microservice; Express communicates
+  with a local persistent Python child process through JSON lines/stdin/stdout.
+- MongoDB is part of the actual app persistence path.
+- Inference is TensorFlow/Keras in Python, not TensorFlow.js. tfjs-node is
+  declared but was not found in the serving source path.
+- There is no automated path from reviewed labels to retraining.
+- No external disease-information API or cloud object storage was found.
+
+======================================================================
+10. CORE CODE EXCERPTS
+======================================================================
+
+The following excerpts are copied/condensed from actual source. Ellipses
+indicate omitted surrounding code; explanatory placeholder identifiers are
+not source code.
+
+FILE: client/src/main.jsx
+PURPOSE: Frontend root mount and routing context.
+STATUS: IMPLEMENTED.
+CODE:
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <BrowserRouter><App /></BrowserRouter>
+    </StrictMode>,
+  )
+
+FILE: client/src/App.jsx (chooseFile and analyzePhoto)
+PURPOSE: Validate browser selection and submit a real model request.
+STATUS: IMPLEMENTED.
+CODE:
+  const MAX_FILE_SIZE = 8 * 1024 * 1024
+  const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+  function chooseFile(nextFile) {
+    if (!nextFile) return
+    if (!ACCEPTED_TYPES.includes(nextFile.type)) {
+      setError('Choose a JPG, PNG, or WebP photo.')
+      return
+    }
+    if (nextFile.size > MAX_FILE_SIZE) {
+      setError('That photo is larger than 8 MB. Choose a smaller image.')
+      return
+    }
+    // Remaining actual function creates preview URL and updates React state.
+  }
+
+  async function analyzePhoto(event) {
+    event.preventDefault()
+    if (!file || isLoading) return
+    const payload = new FormData()
+    payload.append('image', file)
+    payload.append('crop', crop)
+    try {
+      const response = await axios.post('/api/predict', payload)
+      setResult(response.data)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message
+        || 'The model could not analyze this photo.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+FILE: client/src/Dashboard.jsx
+PURPOSE: Fetch server aggregates and render stats/activity/disease charts.
+STATUS: IMPLEMENTED.
+CODE:
+  axios.get('/api/dashboard/stats')
+    .then((response) => {
+      if (active) setStats(response.data)
+    })
+    .catch((requestError) => {
+      if (active) setError(requestError.response?.data?.message
+        || 'Dashboard statistics could not be loaded.')
+    })
+  ...
+  <BarChart data={stats.weeklyActivity}>...</BarChart>
+  <Pie data={distribution} dataKey="count" nameKey="disease">...</Pie>
+
+FILE: client/src/diagnosisReport.js
+PURPOSE: Build downloadable PDF from the selected actual prediction record.
+STATUS: IMPLEMENTED.
+CODE:
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
+  ...
+  if (record.image_url) {
+    const imageResponse = await axios.get(record.image_url,
+      { responseType: 'blob' })
+    const imageData = await blobToDataUrl(imageResponse.data)
+    pdf.addImage(imageData, 'JPEG', margin, y, imageWidth, imageHeight)
+  }
+  addSection('Predicted crop', cropFromClassName(record.prediction))
+  addSection('Predicted disease / class',
+    formatDiseaseName(record.prediction))
+  addSection('Model score',
+    `${formatPercent(record.confidence)} · Raw softmax score; not statistically calibrated.`)
+
+FILE: server/app.js
+PURPOSE: Configure Express middleware and mount verified routes.
+STATUS: IMPLEMENTED.
+CODE:
+  app.use(helmet())
+  app.use(cors())
+  app.use(express.json({ limit: '10mb' }))
+  app.use(express.urlencoded({ extended: true }))
+  app.use('/api', limiter)
+  app.use('/api', authRoutes)
+  app.get('/api/health', (req, res) => {
+    const databaseConnected = mongoose.connection.readyState === 1
+    res.status(databaseConnected ? 200 : 503).json({
+      status: databaseConnected ? 'ok' : 'unavailable',
+      database: databaseConnected ? 'connected' : 'disconnected',
+    })
+  })
+  app.use('/api', predictionRoutes)
+
+FILE: server/routes/predictionRoutes.js
+PURPOSE: Bind protected API routes to controllers.
+STATUS: IMPLEMENTED.
+CODE:
+  router.use(requireOwner)
+  router.get('/predictions', getPredictionHistory)
+  router.get('/dashboard/stats', getDashboardStats)
+  router.post('/predict', parseImage, predictImage)
+  router.get('/predictions/:id/image', getPredictionImage)
+  router.patch('/predictions/:id/label', reviewPrediction)
+  router.delete('/predictions/:id', deletePrediction)
+
+FILE: server/controllers/predictionController.js (upload/prediction core)
+PURPOSE: Validate upload, infer, save JPEG and original prediction record.
+STATUS: IMPLEMENTED.
+CODE:
+  const acceptedTypes = new Set([
+    'image/jpeg', 'image/png', 'image/webp',
+  ])
+  const uploadImage = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+    fileFilter: (request, file, callback) => {
+      if (!acceptedTypes.has(file.mimetype)) {
+        callback(new Error('Upload a JPG, PNG, or WebP image.'))
+        return
+      }
+      callback(null, true)
+    },
+  }).single('image')
+  ...
+  const result = await modelInference.predict(request.file.buffer, crop)
+  const imageBuffer = await sharp(request.file.buffer,
+      { limitInputPixels: 40_000_000 })
+    .rotate().jpeg({ quality: 85 }).toBuffer()
+  ...
+  const prediction = await Prediction.create({
+    ownerId: request.ownerId,
+    prediction: result.prediction,
+    confidence: result.confidence,
+    cropFilter: result.crop_filter || crop,
+    topPredictions: result.top_predictions.map(
+      ({ class_name, confidence }) => ({ className: class_name, confidence })),
+    imageFilename,
+    imageMimeType: 'image/jpeg',
+    imageSizeBytes: imageBuffer.length,
+    isUncertain: result.confidence < 0.5,
+    reviewStatus: 'pending',
+  })
+
+FILE: server/services/modelInference.js
+PURPOSE: Start and communicate with persistent Python worker.
+STATUS: IMPLEMENTED.
+CODE:
+  const workerPath = isWindows ? windowsPathToWsl(WORKER_PATH) : WORKER_PATH
+  const command = isWindows ? 'wsl.exe'
+    : (process.env.ML_PYTHON || 'python3')
+  const args = isWindows
+    ? ['--distribution', distro, '--exec', pythonPath, '-u', workerPath]
+    : ['-u', workerPath]
+  const child = spawn(command, args,
+    { stdio: ['pipe', 'pipe', 'pipe'] })
+  ...
+  workerProcess.stdin.write(
+    `${JSON.stringify({
+      id, crop, image: imageBuffer.toString('base64')
+    })}\n`,
+  )
+
+FILE: ml/inference/worker.py
+PURPOSE: Load saved Keras weights and run inference.
+STATUS: IMPLEMENTED.
+CODE:
+  model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+  ...
+  with Image.open(io.BytesIO(image_bytes)) as source:
+      image = ImageOps.exif_transpose(source).convert('RGB')
+      image = image.resize(IMAGE_SIZE, Image.Resampling.BILINEAR)
+      array = np.asarray(image, dtype=np.float32) / 255.0
+  probabilities = model(np.expand_dims(array, axis=0),
+                        training=False).numpy()[0]
+
+FILE: server/config/db.js
+PURPOSE: Connect to MongoDB through Mongoose.
+STATUS: IMPLEMENTED.
+CODE:
+  const conn = await mongoose.connect(
+    process.env.MONGO_URI || /* local MongoDB fallback in source */
+  )
+  console.log(`MongoDB connected: ${conn.connection.host}`)
+  ...
+  process.exit(1)
+
+FILE: server/models/Prediction.js
+PURPOSE: Store model output, saved-image reference and review separately.
+STATUS: IMPLEMENTED.
+CODE:
+  ownerId: { type: String, index: true, default: null },
+  prediction: { type: String, required: true, trim: true },
+  confidence: { type: Number, required: true, min: 0, max: 1 },
+  cropFilter: {
+    type: String, enum: ['auto', 'tomato', 'potato', 'pepper'],
+    required: true,
+  },
+  reviewStatus: {
+    type: String, enum: ['pending', 'confirmed', 'corrected'],
+    default: 'pending',
+  },
+  reviewedLabel: { type: String, trim: true },
+  reviewedAt: { type: Date },
+
+FILE: server/middleware/requireOwner.js
+PURPOSE: Verify owner session and attach the owner scope to the request.
+STATUS: IMPLEMENTED.
+CODE:
+  const payload = jwt.verify(token || '', secret)
+  if (payload.sub !== ownerEmail) {
+    response.status(401).json({
+      message: 'Sign in to access this account.',
+    })
+    return
+  }
+  request.ownerId = ownerEmail
+  next()
+
+FILE: server/controllers/predictionController.js (reviewPrediction)
+PURPOSE: Record human review without replacing the original prediction.
+STATUS: IMPLEMENTED.
+CODE:
+  prediction.reviewedLabel = label
+  prediction.reviewStatus = label === prediction.prediction
+    ? 'confirmed'
+    : 'corrected'
+  prediction.isUncertain =
+    prediction.confidence < uncertainConfidenceThreshold
+    || label === unknownLabel
+  prediction.reviewedAt = new Date()
+  await prediction.save()
+
+FILE: server/controllers/predictionController.js (getDashboardStats)
+PURPOSE: Derive dashboard numbers from the authenticated owner's MongoDB rows.
+STATUS: IMPLEMENTED.
+CODE:
+  const records = await Prediction.find({ ownerId: request.ownerId })
+    .select(predictionSelection())
+    .sort({ createdAt: -1 })
+    .lean()
+  const healthyCount = records.filter((record) =>
+    record.prediction.toLowerCase().endsWith('healthy')).length
+  const confidenceAverage = records.length
+    ? records.reduce((total, record) => total + record.confidence, 0)
+        / records.length
+    : null
+
+FILE: client/src/App.jsx (exportHistoryCsv)
+PURPOSE: Download the currently displayed actual records as CSV.
+STATUS: IMPLEMENTED.
+CODE:
+  const rows = [
+    ['Created at', 'Crop', 'Original prediction', 'Model score',
+      'Review status', 'Reviewed label'],
+    ...recentPredictions.map((prediction) => [
+      prediction.created_at,
+      cropFromClassName(prediction.prediction),
+      prediction.prediction,
+      prediction.confidence,
+      prediction.review_status,
+      prediction.reviewed_label || '',
+    ]),
+  ]
+  const csv = `\uFEFF${rows.map((row) => row.map((value) =>
+    `"${String(value ?? '').replaceAll('"', '""')}"`
+  ).join(',')).join('\r\n')}`
+
+FILE: client/src/diseaseGuide.js
+PURPOSE: Provide provisional score display labels, not model calibration.
+STATUS: IMPLEMENTED.
+CODE:
+  export const MODEL_SCORE_THRESHOLDS = {
+    high: 0.8,
+    moderate: 0.5,
+  }
+  export function scoreDescription(score) {
+    if (score >= MODEL_SCORE_THRESHOLDS.high) return 'High model score'
+    if (score >= MODEL_SCORE_THRESHOLDS.moderate) {
+      return 'Moderate model score'
+    }
+    return 'Low model score'
+  }
+
+FILE: ml/training/train_cnn.py
+PURPOSE: Define/fill custom CNN from scratch and save model/history.
+STATUS: IMPLEMENTED.
+CODE:
+  outputs = keras.layers.Dense(num_classes, activation='softmax')(x)
+  model = keras.Model(inputs, outputs)
+  model.compile(
+      optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+      loss='categorical_crossentropy',
+      metrics=['accuracy'],
+  )
+  history = model.fit(
+      train_dataset, validation_data=val_dataset,
+      epochs=EPOCHS, verbose=1,
+  )
+  model.save(MODEL_PATH)
+
+FILE: ml/training/dataset_loader.py
+PURPOSE: Generate sorted class IDs and seeded stratified data split.
+STATUS: IMPLEMENTED.
+CODE:
+  class_dirs = sorted([p for p in DATASET_DIR.iterdir() if p.is_dir()])
+  class_names = [d.name for d in class_dirs]
+  ...
+  train_test_split(..., test_size=TEST_SPLIT + VALIDATION_SPLIT,
+                   random_state=SEED, stratify=labels)
+  ...
+  return image, tf.one_hot(label, depth=num_classes)
+
+FILE: ml/evaluation/evaluate_model.py
+PURPOSE: Write quantitative test metrics and confusion matrix outputs.
+STATUS: IMPLEMENTED.
+CODE:
+  matrix = confusion_matrix(test_labels, predicted_labels,
+                            labels=np.arange(len(class_names)))
+  report = classification_report(
+      test_labels, predicted_labels, target_names=class_names,
+      output_dict=True, zero_division=0)
+  report_path.write_text(json.dumps({
+      'test_samples': len(test_labels),
+      'accuracy': report['accuracy'],
+      'classification_report': report,
+      'class_names': class_names,
+      'confusion_matrix': matrix.tolist(),
+  }, indent=2), encoding='utf-8')
+
+======================================================================
+11. ACTUAL TESTING AND RUN RESULTS
+======================================================================
+
+Project-authored automated tests:
+- No test/spec suite was found in the application source.
+- The ML evaluation script is an evaluation workflow, not a unit-test suite.
+- `inspect_dataset.py` checks selected dataset images, not app functionality.
+
+Package scripts found:
+- Root: `npm run dev`, `npm run server`, `npm run client`.
+- Client: `npm run dev`, `npm run build`, `npm run lint`, `npm run preview`.
+- Python commands documented in ml/README.md:
+  `python ml/inspection/inspect_dataset.py`
+  `python ml/training/train_cnn.py`
+  `python ml/evaluation/evaluate_model.py`
+
+Validation actually performed in this workspace:
+- Client production build (`npm run build`) completed successfully in prior
+  integration work associated with this repository.
+- Client lint (`npm run lint`, oxlint) completed successfully in prior
+  integration work.
+- Node syntax checks for backend app/controller/routes/auth/middleware/model
+  completed successfully in prior integration work.
+- Manual integration work previously exercised a real model prediction,
+  top outputs, stored JPEG retrieval, owner isolation, preservation of
+  original prediction after review, history filters, dashboard totals, CSV
+  download initiation, and PDF Blob generation.
+- In this documentation pass, GET `/api/health` returned status `ok` and
+  database `connected`; backend was listening on port 5000.
+- The saved evaluation artifact reports 1,008 held-out samples and 84.23%
+  accuracy. The evaluation script was not rerun for this document.
+- Training was not launched for this task.
+
+Untested/uncertain:
+- No automated React component tests or API integration test files.
+- No browser visual regression or responsive viewport suite found.
+- Evaluation artifact's provenance and reproducibility were not independently
+  checked by rerunning training/evaluation here.
+- No evidence of a field-photo validation study or calibrated confidence.
+- Python/TensorFlow version in the active WSL environment and exact hardware
+  used for model training were not independently captured here.
+
+======================================================================
+12. VISIBLE PAGES AND COMPONENTS
+======================================================================
+
+Verified from source:
+
+1. Sign-in panel:
+   - Private workspace heading, email/password fields, sign-in action, and
+     loading/error messaging.
+   - In App.jsx, shown until `/api/auth/session` supplies an owner.
+
+2. Analyzer page (`/` and other non-dashboard paths):
+   - Header brand and Dashboard/Analyze navigation.
+   - Status label "CNN MODEL / 09 CLASSES".
+   - Crop selector for Auto/Tomato/Potato/Pepper.
+   - Drop zone, Browse photos button, image preview, and Analyze photo.
+   - Prediction result with predicted crop/class, score, top model outputs,
+     disease/prevention text where available, caveat, and report action.
+   - History filters, thumbnails, score/review state, correction controls,
+     details, report, deletion, and CSV export.
+
+3. Dashboard (`/dashboard`):
+   - Four cards (total, healthy, diseased, average model score).
+   - Seven-day prediction activity bar chart.
+   - Disease-only class distribution pie chart.
+   - Recent saved predictions and detail action.
+   - Empty state for an owner with no records.
+
+4. Prediction detail dialog:
+   - Saved image where available, original model label, crop, score, date,
+     review status, top predictions, static disease guidance, disclaimer,
+     report download, and close action.
+
+Screenshots:
+- No app screenshots were found in the repository. The bundled
+  client/src/assets/hero.png is an image asset and has no source reference
+  found in client/src; it is not evidence of visible current UI or backend
+  operation.
+
+======================================================================
+13. LIMITATIONS AND DISCREPANCIES
+======================================================================
+
+- Model scope is nine classes across pepper, potato, tomato. Other crops or
+  unseen diseases are not modeled as a general open-set classifier.
+- The project warns that an unknown disease can be marked during review, but
+  this does not make the CNN capable of recognizing arbitrary diseases.
+- Model softmax values are called confidence in data/schema, but are not
+  calibrated confidence. UI documentation correctly describes them as model
+  scores and gives provisional thresholds only.
+- Selecting a crop filters eligible outputs; it is not a separate
+  crop-recognition model, and scores are not normalized after filtering.
+- Static disease information covers the nine class labels only and is
+  generic guidance.
+- Model artifact, class_names.json, and saved evaluation files exist; source
+  establishes the intended custom-CNN training pipeline. Exact model
+  provenance/training run is not cryptographically tied to current data.
+- Dataset docs name PlantVillage, but no source manifest or provenance
+  verification report was found. Do not state a dataset image count unless
+  separately verified from dataset inventory and permitted source metadata.
+- Current evaluation artifact shows 84.23% accuracy on 1,008 samples with
+  uneven class support and variable per-class metrics. This is not evidence
+  of field performance and must not be presented as a guarantee.
+- No data augmentation, early stopping, checkpoint selection, or calibration
+  step is in the inspected training script.
+- The project contains no UI for account creation, password reset, or
+  password change; it relies on one environment-configured owner.
+- Prediction ownerId stores a normalized account identifier string. Existing
+  rows without ownerId are deliberately hidden; migration must be controlled
+  rather than assumed.
+- Image files live on local filesystem. No cloud object storage or backup
+  lifecycle is present.
+- Reviews are saved but not used to update model weights, regenerate class
+  metadata, or automatically build training sets.
+- `/api/predictions/recent` exists, but current client source makes no call to
+  it; Dashboard obtains recent rows inside `/api/dashboard/stats`.
+- Client page structure is concentrated in App.jsx; source directories for
+  components, pages, services, hooks, and context are empty.
+- No project-authored automated test files were found.
+- Vite HTML title remains "client".
+- No screenshots are stored in the repository.
+- Root package declares @tensorflow/tfjs-node, but inspected inference
+  actually runs Python/TensorFlow via child process and WSL.
+- bcryptjs is declared, but no hashing use was found in inspected owner
+  authentication; avoid claiming password-hash storage.
+- Express's final generic error middleware maps forwarded errors to 503.
+- Hardware specs, actual GPU usage, field testing, and operator workflow are
+  not established by checked-in source/artifacts.
+
+======================================================================
+14. REPORT-READY SUMMARY
+======================================================================
+
+The following can be adapted into an academic report, with the caveats below.
+The student must confirm institutional format, exact development hardware,
+dataset citation/license, training provenance, and whether the saved model
+metrics are approved for inclusion.
+
+Abstract facts:
+CropAI is a browser-based crop leaf image classification prototype. Its
+React frontend sends JPEG/PNG/WebP images to a Node.js/Express API. The API
+uses MongoDB for prediction history and a Python TensorFlow/Keras worker for
+inference with a custom CNN trained from scratch. The saved model supports
+nine pepper, potato, and tomato leaf classes. The app provides ranked model
+outputs, reviewable history, a database-backed dashboard, CSV export, and
+downloadable PDF reports. Model scores are not calibrated diagnoses.
+
+Problem definition:
+Plant disease recognition from leaf appearance can be time-consuming and
+requires agricultural expertise. This prototype explores an image
+classification workflow that can return a ranked prediction for a limited
+set of known classes. It is an assistive demonstration and cannot replace
+expert diagnosis or identify every disease.
+
+Objectives evidenced by source:
+- Provide a web interface for uploading a crop leaf image.
+- Classify the image among nine supported classes using a custom CNN.
+- Persist original prediction results and uploaded normalized images.
+- Allow the configured owner to review/correct labels without overwriting
+  the model's original output.
+- Present owner-scoped history and summary charts.
+- Export selected result details as CSV/PDF.
+
+Scope:
+- Crops: pepper, potato, tomato.
+- Nine classes, listed in section 7.
+- Upload types: JPG/JPEG, PNG, WebP; maximum 8 MiB.
+- Training loader also accepts BMP, but browser/backend inference upload
+  allowlists do not.
+- The scope is a prototype for the labels in the model metadata, not
+  arbitrary plant disease detection.
+
+Existing system:
+The repository already contains a local web application and a custom CNN
+inference path. Images are uploaded through the web app; the Express server
+coordinates the Python worker, persists prediction records in MongoDB, and
+serves private history and image access.
+
+Proposed system / implemented proposal:
+A single-owner CropAI workflow combining leaf image upload, CNN ranking,
+stored reviewable results, dashboard aggregation, and downloadable reports.
+Do not describe account creation, collaborative review, automatic retraining,
+or open-set disease recognition as implemented.
+
+Methodology:
+Class folders are sorted to form label IDs. The code creates stratified
+training/validation/test splits with seed 42 and 80/10/10 proportions.
+Images are converted to RGB, resized to 224x224 and scaled to [0,1]. A
+custom four-block convolutional network with BatchNorm/ReLU and pooling,
+GlobalAveragePooling, Dense/Dropout and a softmax output is trained using
+Adam, categorical cross-entropy, batch size 16, up to 20 epochs. The
+existing evaluation artifact reports held-out performance for 1,008 images.
+No augmentation or probability calibration is present in the inspected
+pipeline.
+
+System architecture:
+React/Vite browser -> Express API -> persistent Python TensorFlow/Keras
+worker for inference -> MongoDB record plus local JPEG storage -> React
+result/history/dashboard. Training/evaluation are separate Python scripts
+using the class-directory dataset and export a Keras model plus class
+metadata/evaluation artifacts.
+
+Module descriptions:
+- Frontend: sign-in, image upload, result display, history, review, dashboard,
+  CSV and PDF.
+- Backend API: session verification, upload validation, inference dispatch,
+  owner-scoped record CRUD, image delivery, dashboard aggregation.
+- ML training: dataset discovery, split, preprocessing and custom CNN fit.
+- ML inference: persistent worker loads the saved Keras model once and
+  returns top-three class scores.
+- Database: Mongoose Prediction schema stores prediction and review
+  separately; image bytes are local files.
+
+Software requirements:
+- Node.js and npm compatible with package.json (inspection used Node 24.15.0
+  and npm 11.12.1).
+- MongoDB server.
+- WSL Ubuntu plus Python/TensorFlow environment for Windows model inference,
+  or Python/TensorFlow on non-Windows as configured by source.
+- Client dependencies as listed in client/package.json.
+- Python requirements listed in ml/requirements.txt.
+
+Hardware requirements:
+- Actual machine CPU, RAM, GPU model and storage were not captured in source
+  or verified during this documentation pass. Do not invent minimum specs.
+- The README describes using WSL for GPU training; GPU training is optional
+  according to the scripts but performance requirements are not documented.
+- Student must confirm actual development/training hardware and tested
+  runtime details before including them as project facts.
+
+Implementation overview:
+React state drives UI and Axios requests. Express applies request middleware
+and routes. Multer enforces upload limits, a Python worker runs TensorFlow
+inference, Sharp stores a normalized JPEG, and Mongoose persists metadata.
+The owner cookie scopes API data. Dashboard values are computed from stored
+prediction documents; reports are rendered on the client.
+
+Testing status:
+Prior workspace validation ran the client build and lint and backend syntax
+checks successfully. Prior manual integration work exercised the real model,
+ownership restrictions, review preservation, saved images, history/dashboard
+flows, and report creation. There are no committed app test files. State
+clearly which checks were manual and which were build/lint/syntax checks.
+
+Results available:
+The checked-in ml/output/evaluation.json reports 1,008 test samples,
+accuracy 84.23%, macro precision 81.53%, macro recall 83.12%, macro F1
+79.62%, weighted precision 89.98%, weighted recall 84.23%, and weighted
+F1 85.43%. Values are rounded from the saved artifact. Per-class results
+vary and some class supports are small. Cite this as the saved test-split
+result, not as a field-validated guarantee. The actual evaluation artifact
+should be reviewed before final submission.
+
+Limitations:
+Nine-class restriction, uncalibrated scores, no open-set recognition,
+limited static guidance, no field-validation evidence, no automated
+retraining, single-owner account, local filesystem image storage, no
+automated application tests, and no verified hardware profile.
+
+Future enhancements (clearly future work, not current features):
+Field-photo evaluation and calibration; carefully reviewed dataset growth;
+human-reviewed data export/retraining workflow; improved account
+administration; scalable/private object storage; expanded tests and
+monitoring. These are suggestions, not claims of existing code.
+
+Student confirmation required:
+- Exact dataset source, version, license, and citation.
+- Whether saved model artifact matches the dataset/code version used for the
+  final experiment.
+- Actual hardware, OS/WSL/Python/GPU and training date.
+- Whether evaluation metric values should be reported and the approved
+  experimental protocol.
+- Any screenshots or demo evidence outside this repository.
+
+======================================================================
+15. FACT CHECK TABLE
+======================================================================
+
+CLAIM | EVIDENCE FILE/FUNCTION | STATUS | SAFE TO STATE IN REPORT?
+
+MERN-style stack (React, Node/Express, MongoDB/Mongoose) is used
+  | client/package.json; server/app.js; server/config/db.js
+  | Implemented; Python is additionally required for ML
+  | Yes, describe as MERN-style with separate Python ML worker.
+
+MongoDB persistence works
+  | server/server.js; server/config/db.js; Prediction model; GET /api/health
+  | Implemented; connected and health checked during inspection
+  | Yes, scoped to this development configuration/runtime.
+
+CNN is trained from scratch
+  | ml/training/train_cnn.py: build_model/main
+  | Custom architecture and training fit code; saved model artifact exists
+  | Yes, source supports from-scratch training; identify run provenance as
+    unverified unless separately documented.
+
+PlantVillage was used
+  | README.md; ml/README.md; class-directory dataset
+  | Project documentation says PlantVillage; independent provenance/license
+    manifest not found
+  | State as documented dataset source, and cite/confirm dataset separately.
+
+Actual model inference works
+  | server/services/modelInference.js; ml/inference/worker.py; saved model
+  | Real Keras load/predict path exists; prior manual inference integration
+    was exercised
+  | Yes, as prototype integration, not as proof of reliable diagnosis.
+
+Number of supported classes
+  | ml/output/class_names.json; server controller classes endpoint
+  | Nine labels actually present and returned
+  | Yes: list the nine exact classes and limit claims to those classes.
+
+Accuracy / precision / recall / F1
+  | ml/output/evaluation.json; ml/evaluation/evaluate_model.py
+  | Saved held-out evaluation: 1,008 samples; 84.23% accuracy; macro and
+    weighted values in section 14
+  | Yes only as the existing saved test-split result, with protocol and
+    dataset limitations; not field performance.
+
+Prediction history persists
+  | server/controllers/predictionController.js; server/models/Prediction.js
+  | MongoDB create/read/delete source and prior manual integration
+  | Yes, records and image file metadata persist in configured local setup.
+
+User corrections are separate from model output
+  | Prediction schema; reviewPrediction; App.jsx saveReview
+  | reviewedLabel stored separately; prediction is not overwritten
+  | Yes.
+
+Dashboard uses real data
+  | getDashboardStats; Dashboard.jsx
+  | Queries owner-scoped MongoDB rows; no hardcoded sample metrics
+  | Yes; explain average is raw model score and charts aggregate saved rows.
+
+PDF export works
+  | client/src/diagnosisReport.js; result/detail actions in App.jsx
+  | Client-side jsPDF implementation; prior manual PDF Blob generation
+    verified
+  | Yes, describe as a generated prediction report, not a formal diagnosis.
+
+Crop identification is performed by a separate model
+  | ml/inference/worker.py crop prefix filtering
+  | Not found; selected crop filters class candidates only
+  | No.
+
+Unseen/unknown disease is detected automatically
+  | nine-class model; review UI special unknown label
+  | Not implemented as automatic open-set recognition; unknown is a human
+    review option
+  | No.
+
+Reviewed data retrains the CNN automatically
+  | No code found
+  | Not found
+  | No; may only be proposed as future work.
+
+Users have independent registered accounts
+  | authRoutes.js and requireOwner.js
+  | One owner configured through environment only
+  | No; describe single-owner authentication.
+
+Human field validation or calibrated confidence exists
+  | No calibration or field validation workflow found
+  | Not found
+  | No.
+
+======================================================================
+END OF PROJECT CONTEXT
+======================================================================
