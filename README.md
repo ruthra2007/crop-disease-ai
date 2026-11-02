@@ -26,7 +26,7 @@ Metrics are a research baseline, not a field diagnosis. The model can be overcon
 
 ## Vercel frontend-only deployment
 
-The root `vercel.json` builds and serves the React client as a static Vite site. This frontend-only deployment does not host Express, MongoDB, or the Python/TensorFlow model worker. Without a separately hosted backend and API proxy, sign-in, predictions, saved images, history, dashboard data, and report image retrieval will not work. The app does not substitute mock prediction data.
+Configure the Vercel project's root directory as `client`; `vercel.json` contains the install, build, and output commands for that root. This frontend-only deployment does not host Express, MongoDB, or the Python/TensorFlow model worker. Without a separately hosted backend and API proxy, sign-in, predictions, saved images, history, dashboard data, and report image retrieval will not work. The app does not substitute mock prediction data.
 
 For the complete application, deploy the persistent Express/Python backend and MongoDB separately, then configure a same-origin `/api` proxy for the Vercel frontend. The backend writes uploaded images to local disk, so its host must provide persistent storage.
 
